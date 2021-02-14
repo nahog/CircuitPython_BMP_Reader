@@ -1,4 +1,3 @@
-
 class BMPReader(object):
     def __init__(self, filename):
         self._filename = filename
@@ -60,31 +59,39 @@ class BMPReader(object):
 
         return pixel_grid
 
-    def _lebytes_to_int(self, bytes):
-        n = 0x00
-        while len(bytes) > 0:
-            n <<= 8
-            n |= bytes.pop()
-        return int(n)
-
     def _read_img_data(self):
         with open(self._filename, 'rb') as f:
-            img_bytes = list(bytearray(f.read(38)))
-
-        # Before we proceed, we need to ensure certain conditions are met
-        assert img_bytes[0:2] == [66, 77], "Not a valid BMP file"
-        assert self._lebytes_to_int(img_bytes[30:34]) == 0, \
-            "Compression is not supported"
-        assert self._lebytes_to_int(img_bytes[28:30]) == 24, \
-            "Only 24-bit colour depth is supported"
-
-        self._start_pos = self._lebytes_to_int(img_bytes[10:14])
-        self._end_pos = self._lebytes_to_int(img_bytes[34:38])
-
-        self.width = self._lebytes_to_int(img_bytes[18:22])
-        self.height = self._lebytes_to_int(img_bytes[22:26])
-
-        img_bytes.clear()
+            
+            # [0:2] BM header
+            header = f.read(2) 
+            assert header[0] == 66 and header[1] == 77, "Not a valid BMP file"
+            
+            # Discard [2:10]
+            f.read(8) 
+            
+            # [10:14] start_pos
+            self._start_pos = int.from_bytes(f.read(4), "little")
+            
+            # Discard [14:18]
+            f.read(4) 
+            
+            # [18:22] width, [22:26] width
+            self.width = int.from_bytes(f.read(4), "little") 
+            self.height = int.from_bytes(f.read(4), "little")
+            
+            # Discard [26:28]
+            f.read(2) 
+            
+            # [28:30] bits per pixel
+            assert int.from_bytes(f.read(2), "little") == 24, \
+                   "Only 24-bit colour depth is supported"
+            
+            # [30:34] compression
+            assert int.from_bytes(f.read(4), "little") == 0, \
+                   "Compression is not supported"
+            
+            # [34:38] end_pos
+            self._end_pos = int.from_bytes(f.read(4), "little")
 
         # As per https://en.wikipedia.org/wiki/BMP_file_format for BI_RGB
         # images, length can be 0, so it can be inferred from the image size
@@ -94,5 +101,8 @@ class BMPReader(object):
         self._end_pos = self._start_pos + self._end_pos
 
         with open(self._filename, 'rb') as f:
-           f.read(self._start_pos)
-           self._pixel_data = f.read(self._end_pos)
+            # Discard up to start_pos
+            f.read(self._start_pos)
+
+            # Read the RGB data from start to end
+            self._pixel_data = f.read(self._end_pos)
