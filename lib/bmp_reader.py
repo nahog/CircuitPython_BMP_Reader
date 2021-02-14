@@ -4,6 +4,13 @@ class BMPReader(object):
         self._filename = filename
         self._read_img_data()
 
+    def to_string(self):
+        print('Filename: ' + self._filename)
+        print('Width: ' + str(self.width))
+        print('Height: ' + str(self.height))
+        print('Start position: ' + str(self._start_pos))
+        print('End position: ' + str(self._end_pos))
+
     def get_pixels(self):
         """
         Returns a multi-dimensional array of the RGB values of each pixel in the
@@ -47,10 +54,17 @@ class BMPReader(object):
         assert lebytes_to_int(img_bytes[28:30]) == 24, \
             "Only 24-bit colour depth is supported"
 
-        start_pos = lebytes_to_int(img_bytes[10:14])
-        end_pos = start_pos + lebytes_to_int(img_bytes[34:38])
+        self._start_pos = lebytes_to_int(img_bytes[10:14])
+        self._end_pos = lebytes_to_int(img_bytes[34:38])
 
         self.width = lebytes_to_int(img_bytes[18:22])
         self.height = lebytes_to_int(img_bytes[22:26])
 
-        self._pixel_data = img_bytes[start_pos:end_pos]
+        # As per https://en.wikipedia.org/wiki/BMP_file_format for BI_RGB
+        # images, length can be 0, so it can be inferred from the image size
+        if self._end_pos == 0:
+            self._end_pos = self.width * self.height * 3
+
+        self._end_pos = self._start_pos + self._end_pos
+
+        self._pixel_data = img_bytes[self._start_pos:self._end_pos]
